@@ -12,6 +12,10 @@
     background: var(--bg-primary);
 }
 
+[data-theme="light"] .auth-page {
+    background: var(--bg-secondary);
+}
+
 .auth-container {
     width: 100%;
     max-width: 420px;
@@ -236,10 +240,11 @@
 }
 
 .daily-goals {
-    background: var(--gradient-card);
+    background: var(--bg-card);
     border-radius: var(--radius-xl);
     padding: var(--spacing-lg);
     margin-bottom: var(--spacing-xl);
+    border: 1px solid var(--border-light);
 }
 
 .daily-goals-header {
@@ -340,7 +345,7 @@
 }
 
 .review-reminder {
-    background: var(--warning-light);
+    background: var(--warning-bg);
     border: 1px solid var(--warning);
     border-radius: var(--radius-xl);
     padding: var(--spacing-lg);
@@ -682,9 +687,9 @@
 }
 
 .flashcard-btn.repeat {
-    background: var(--error-light);
+    background: var(--error-bg);
     color: var(--error);
-    border: 1px solid var(--error);
+    border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
 .flashcard-btn.repeat:hover {
@@ -693,9 +698,9 @@
 }
 
 .flashcard-btn.learned {
-    background: var(--success-light);
+    background: var(--success-bg);
     color: var(--success);
-    border: 1px solid var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .flashcard-btn.learned:hover {
@@ -922,6 +927,7 @@
     padding: var(--spacing-xl);
     margin-bottom: var(--spacing-xl);
     text-align: center;
+    border: 1px solid var(--border-light);
 }
 
 .test-question-label {
@@ -967,12 +973,12 @@
 
 .test-option.correct {
     border-color: var(--success);
-    background: var(--success-light);
+    background: var(--success-bg);
 }
 
 .test-option.incorrect {
     border-color: var(--error);
-    background: var(--error-light);
+    background: var(--error-bg);
 }
 
 .test-option:disabled {
@@ -988,12 +994,12 @@
 }
 
 .test-feedback.correct {
-    background: var(--success-light);
+    background: var(--success-bg);
     color: var(--success);
 }
 
 .test-feedback.incorrect {
-    background: var(--error-light);
+    background: var(--error-bg);
     color: var(--error);
 }
 
@@ -1015,6 +1021,7 @@
     padding: var(--spacing-xl);
     margin-bottom: var(--spacing-xl);
     text-align: center;
+    border: 1px solid var(--border-light);
 }
 
 .translation-label {
@@ -1057,7 +1064,7 @@
 }
 
 .translation-result.correct {
-    background: var(--success-light);
+    background: var(--success-bg);
     border: 1px solid var(--success);
 }
 
@@ -1296,7 +1303,7 @@
 }
 
 .room-timeout-warning {
-    background: var(--warning-light);
+    background: var(--warning-bg);
     border: 1px solid var(--warning);
     border-radius: var(--radius-lg);
     padding: var(--spacing-md);
@@ -1453,6 +1460,7 @@
     border-radius: var(--radius-xl);
     padding: var(--spacing-lg);
     margin-bottom: var(--spacing-xl);
+    border: 1px solid var(--border-light);
 }
 
 .chart-title {
@@ -1471,6 +1479,7 @@
     background: var(--bg-card);
     border-radius: var(--radius-xl);
     padding: var(--spacing-lg);
+    border: 1px solid var(--border-light);
 }
 
 .weak-words-header {
@@ -1558,6 +1567,7 @@
     border-radius: var(--radius-xl);
     padding: var(--spacing-lg);
     margin-bottom: var(--spacing-lg);
+    border: 1px solid var(--border-light);
 }
 
 .forum-post-header {
@@ -1664,6 +1674,7 @@
     padding: var(--spacing-lg);
     background: var(--bg-card);
     border-radius: var(--radius-xl);
+    border: 1px solid var(--border-light);
 }
 
 .profile-stat-value {
@@ -1682,6 +1693,7 @@
     border-radius: var(--radius-xl);
     margin-bottom: var(--spacing-lg);
     overflow: hidden;
+    border: 1px solid var(--border-light);
 }
 
 .settings-section-title {
@@ -1802,6 +1814,7 @@
     background: var(--bg-card);
     border-radius: var(--radius-xl);
     padding: var(--spacing-xl);
+    border: 1px solid var(--border-light);
 }
 
 .admin-section.hidden {
@@ -1895,7 +1908,7 @@
 }
 
 .table-action-btn.danger:hover {
-    background: var(--error-light);
+    background: var(--error-bg);
     color: var(--error);
 }
 
@@ -2025,18 +2038,49 @@
     color: var(--text-tertiary);
 }
 
-/* =========================
-   ADMIN COLUMN MAPPING
-   ========================= */
+/* Light Mode Overrides for Components */
+[data-theme="light"] .auth-card,
+[data-theme="light"] .level-card,
+[data-theme="light"] .flashcard-face,
+[data-theme="light"] .study-option-card,
+[data-theme="light"] .test-question,
+[data-theme="light"] .test-option,
+[data-theme="light"] .translation-source,
+[data-theme="light"] .translation-input,
+[data-theme="light"] .competition-option,
+[data-theme="light"] .room-code-digit,
+[data-theme="light"] .chart-container,
+[data-theme="light"] .weak-words-section,
+[data-theme="light"] .forum-topic,
+[data-theme="light"] .forum-post,
+[data-theme="light"] .profile-stat,
+[data-theme="light"] .settings-section,
+[data-theme="light"] .admin-section,
+[data-theme="light"] .leaderboard-item,
+[data-theme="light"] .image-upload-card {
+    background: white;
+    border-color: var(--slate-200);
+    box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .level-card:hover:not(.locked),
+[data-theme="light"] .study-option-card:hover,
+[data-theme="light"] .test-option:hover:not(:disabled),
+[data-theme="light"] .competition-option:hover,
+[data-theme="light"] .forum-topic:hover,
+[data-theme="light"] .image-upload-card:hover {
+    border-color: var(--indigo-500);
+    box-shadow: var(--shadow-md);
+}
+
+/* ADMIN COLUMN MAPPING */
 .column-mapping-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: var(--spacing-lg);
 }
 
-/* =========================
-   ADMIN IMAGE UPLOAD
-   ========================= */
+/* ADMIN IMAGE UPLOAD */
 .image-upload-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -2139,14 +2183,26 @@
 
     .admin-nav {
         flex-wrap: nowrap;
+        /* Make sure it's scrollable horizontally */
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 5px; /* Space for scrollbar */
     }
 
     .level-complete-stats {
         grid-template-columns: 1fr;
     }
 
+    /* Admin Table Mobile Optimization */
     .data-table {
         display: block;
         overflow-x: auto;
+        white-space: nowrap;
+    }
+    
+    .data-table th, 
+    .data-table td {
+        padding: var(--spacing-sm);
+        font-size: var(--font-size-sm);
     }
 }

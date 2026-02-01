@@ -36,10 +36,10 @@ const Helpers = {
         const d = new Date(date);
         const diff = Math.floor((now - d) / 1000);
 
-        if (diff < 60) return 'Az once';
-        if (diff < 3600) return `${Math.floor(diff / 60)} dakika once`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)} saat once`;
-        if (diff < 604800) return `${Math.floor(diff / 86400)} gun once`;
+        if (diff < 60) return 'Az önce';
+        if (diff < 3600) return `${Math.floor(diff / 60)} dakika önce`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)} saat önce`;
+        if (diff < 604800) return `${Math.floor(diff / 86400)} gün önce`;
         return this.formatDate(date);
     },
 
@@ -103,13 +103,14 @@ const Helpers = {
     isValidUsername(username) {
         return username.length >= CONFIG.USERNAME_MIN &&
             username.length <= CONFIG.USERNAME_MAX &&
-            /^[a-zA-Z0-9_]+$/.test(username);
+            /^[a-zA-Z0-9_ğüşıöçĞÜŞİÖÇ]+$/.test(username);
     },
 
     // Compare strings with tolerance
     compareStrings(str1, str2, tolerance = 1) {
-        const s1 = str1.toLowerCase().replace(/[^\w\s]/g, '').trim();
-        const s2 = str2.toLowerCase().replace(/[^\w\s]/g, '').trim();
+        // Türkçe karakterleri koruyarak karşılaştırma
+        const s1 = str1.toLocaleLowerCase('tr-TR').replace(/[^\w\sğüşıöçĞÜŞİÖÇ]/g, '').trim();
+        const s2 = str2.toLocaleLowerCase('tr-TR').replace(/[^\w\sğüşıöçĞÜŞİÖÇ]/g, '').trim();
 
         if (s1 === s2) return true;
 
@@ -146,8 +147,8 @@ const Helpers = {
 
     // Compare words with tolerance
     compareWords(userInput, correct) {
-        const userWords = userInput.toLowerCase().replace(/[^\w\s]/g, '').trim().split(/\s+/);
-        const correctWords = correct.toLowerCase().replace(/[^\w\s]/g, '').trim().split(/\s+/);
+        const userWords = userInput.toLocaleLowerCase('tr-TR').replace(/[^\w\sğüşıöçĞÜŞİÖÇ]/g, '').trim().split(/\s+/);
+        const correctWords = correct.toLocaleLowerCase('tr-TR').replace(/[^\w\sğüşıöçĞÜŞİÖÇ]/g, '').trim().split(/\s+/);
 
         const results = [];
         const maxLen = Math.max(userWords.length, correctWords.length);
@@ -176,14 +177,14 @@ const Helpers = {
             .split(' ')
             .map(n => n[0])
             .join('')
-            .toUpperCase()
+            .toLocaleUpperCase('tr-TR')
             .slice(0, 2);
     },
 
     // Parse CSV
     parseCSV(text) {
         const lines = text.trim().split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+        const headers = lines[0].split(',').map(h => h.trim().toLocaleLowerCase('tr-TR').replace(/\s+/g, '_'));
 
         return lines.slice(1).map(line => {
             const values = line.split(',').map(v => v.trim());
