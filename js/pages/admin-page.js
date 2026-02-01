@@ -269,8 +269,16 @@ const AdminPage = {
                     </div>
                     
                     <div class="form-group" style="margin-top: var(--spacing-lg);">
-                        <label class="form-label">Seviye On Eki (opsiyonel)</label>
-                        <input type="text" class="form-input" id="level-prefix" placeholder="Ornegin: A1, B2, YDS...">
+                        <label class="form-label">Seviye Secimi <span style="color: var(--error);">*</span></label>
+                        <select class="form-input" id="level-select">
+                            <option value="new">-- Yeni Seviye Olustur --</option>
+                        </select>
+                    </div>
+                    <div id="new-level-fields" style="margin-top: var(--spacing-md);">
+                        <div class="form-group">
+                            <label class="form-label">Yeni Seviye Adi</label>
+                            <input type="text" class="form-input" id="new-level-name" placeholder="Ornegin: A1 - Temel Kelimeler">
+                        </div>
                     </div>
                     
                     <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-md);">
@@ -290,6 +298,16 @@ const AdminPage = {
         // Auto-detect columns
         this.autoDetectWordColumns(headers);
 
+        // Load existing levels into the select
+        this.loadLevelOptions();
+
+        // Toggle new level fields visibility
+        const levelSelect = mappingSection.querySelector('#level-select');
+        const newLevelFields = mappingSection.querySelector('#new-level-fields');
+        levelSelect.addEventListener('change', () => {
+            newLevelFields.style.display = levelSelect.value === 'new' ? 'block' : 'none';
+        });
+
         // Preview button
         mappingSection.querySelector('#preview-mapping').addEventListener('click', () => {
             this.previewWordMapping(content, data);
@@ -301,6 +319,22 @@ const AdminPage = {
             preview.classList.add('hidden');
             this.uploadedData = null;
         });
+    },
+
+    async loadLevelOptions() {
+        try {
+            const levels = await DB.levels.getAll();
+            const select = document.querySelector('#level-select');
+            if (!select) return;
+            levels.forEach(level => {
+                const option = document.createElement('option');
+                option.value = level.id;
+                option.textContent = `${level.name} (Sira: ${level.order_index})`;
+                select.appendChild(option);
+            });
+        } catch (e) {
+            console.warn('Could not load levels:', e);
+        }
     },
 
     autoDetectWordColumns(headers) {
@@ -328,7 +362,7 @@ const AdminPage = {
 
     previewWordMapping(content, data) {
         const preview = content.querySelector('#word-preview');
-        
+
         const mapping = {
             english_word: parseInt(document.querySelector('#map-english_word').value),
             turkish_meaning: parseInt(document.querySelector('#map-turkish_meaning').value),
@@ -356,16 +390,17 @@ const AdminPage = {
             return;
         }
 
-        const chunks = [];
-        for (let i = 0; i < transformedData.length; i += CONFIG.WORDS_PER_LEVEL) {
-            chunks.push(transformedData.slice(i, i + CONFIG.WORDS_PER_LEVEL));
-        }
+        const levelSelect = document.querySelector('#level-select');
+        const selectedLevelId = levelSelect.value;
+        const levelLabel = selectedLevelId === 'new'
+            ? (document.querySelector('#new-level-name')?.value?.trim() || 'Yeni Seviye')
+            : levelSelect.options[levelSelect.selectedIndex].textContent;
 
         preview.classList.remove('hidden');
         preview.innerHTML = `
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Onizleme (${transformedData.length} kelime, ${chunks.length} seviye)</h3>
+                    <h3 class="card-title">Onizleme (${transformedData.length} kelime → ${Helpers.escapeHtml(levelLabel)})</h3>
                 </div>
                 <div class="card-body">
                     <div style="max-height: 300px; overflow-y: auto;">
@@ -393,7 +428,7 @@ const AdminPage = {
                             </tbody>
                         </table>
                     </div>
-                    
+
                     <div style="margin-top: var(--spacing-lg); display: flex; gap: var(--spacing-md);">
                         <button class="btn btn-primary btn-lg" id="confirm-word-upload">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -401,7 +436,7 @@ const AdminPage = {
                                 <polyline points="17 8 12 3 7 8"/>
                                 <line x1="12" y1="3" x2="12" y2="15"/>
                             </svg>
-                            Veritabanina Yukle (${chunks.length} Seviye)
+                            Veritabanina Yukle (${transformedData.length} Kelime)
                         </button>
                     </div>
                 </div>
@@ -409,54 +444,65 @@ const AdminPage = {
         `;
 
         preview.querySelector('#confirm-word-upload').addEventListener('click', async () => {
-            const prefix = document.querySelector('#level-prefix')?.value?.trim() || '';
-            await this.uploadWords(content, chunks, prefix);
+            await this.uploadWords(content, transformedData);
         });
     },
 
-    async uploadWords(content, chunks, prefix = '') {
+    async uploadWords(content, words) {
         const btn = content.querySelector('#confirm-word-upload');
         btn.disabled = true;
         btn.innerHTML = '<span class="loading-spinner small"></span> Yukleniyor...';
 
         try {
-            const { data: existingLevels } = await supabaseClient
-                .from('levels')
-                .select('order_index')
-                .order('order_index', { ascending: false })
-                .limit(1);
-            
-            let nextOrder = (existingLevels?.[0]?.order_index || 0) + 1;
+            const levelSelect = document.querySelector('#level-select');
+            const selectedLevelId = levelSelect.value;
+            let levelId;
 
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
-                const levelName = prefix ? `${prefix} - Seviye ${nextOrder}` : `Seviye ${nextOrder}`;
-                
+            if (selectedLevelId === 'new') {
+                // Create new level
+                const newLevelName = document.querySelector('#new-level-name')?.value?.trim();
+                const { data: existingLevels } = await supabaseClient
+                    .from('levels')
+                    .select('order_index')
+                    .order('order_index', { ascending: false })
+                    .limit(1);
+
+                const nextOrder = (existingLevels?.[0]?.order_index || 0) + 1;
+                const levelName = newLevelName || `Seviye ${nextOrder}`;
+
                 const { data: level, error: levelError } = await supabaseClient
                     .from('levels')
                     .insert({ name: levelName, order_index: nextOrder })
                     .select()
                     .single();
-                
+
                 if (levelError) throw levelError;
-                
-                const wordsToInsert = chunk.map(w => ({
-                    level_id: level.id,
+                levelId = level.id;
+            } else {
+                levelId = parseInt(selectedLevelId);
+            }
+
+            // Insert words in batches of 500
+            const BATCH_SIZE = 500;
+            let uploaded = 0;
+            for (let i = 0; i < words.length; i += BATCH_SIZE) {
+                const batch = words.slice(i, i + BATCH_SIZE).map(w => ({
+                    level_id: levelId,
                     english_word: w.english_word,
                     turkish_meaning: w.turkish_meaning,
                     pronunciation: w.pronunciation || '',
                     memory_sentence: w.memory_sentence || '',
                     example_sentence: w.example_sentence || ''
                 }));
-                
-                const { error: wordsError } = await supabaseClient.from('words').insert(wordsToInsert);
+
+                const { error: wordsError } = await supabaseClient.from('words').insert(batch);
                 if (wordsError) throw wordsError;
-                
-                nextOrder++;
-                btn.textContent = `Yukleniyor... (${i + 1}/${chunks.length})`;
+
+                uploaded += batch.length;
+                btn.textContent = `Yukleniyor... (${uploaded}/${words.length})`;
             }
 
-            Toast.success(`${chunks.length} seviye ve ${chunks.flat().length} kelime basariyla yuklendi`);
+            Toast.success(`${words.length} kelime basariyla yuklendi`);
             content.querySelector('#column-mapping-section').classList.add('hidden');
             content.querySelector('#word-preview').classList.add('hidden');
             this.uploadedData = null;
