@@ -51,7 +51,7 @@ const App = {
         if (hash && validRoutes.includes(hash) && hash !== CONFIG.ROUTES.AUTH) {
             Router.navigate(hash, {}, false);
         } else {
-            Router.navigate(CONFIG.ROUTES.HOME, {}, false);
+            Router.navigate(CONFIG.ROUTES.FLASHCARDS, {}, false);
         }
     },
 

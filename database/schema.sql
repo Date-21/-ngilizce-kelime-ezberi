@@ -84,7 +84,9 @@ CREATE TABLE IF NOT EXISTS user_level_progress (
     is_unlocked BOOLEAN DEFAULT FALSE,
     is_completed BOOLEAN DEFAULT FALSE,
     current_word_index INTEGER DEFAULT 0,
+    learned_words JSONB DEFAULT '[]',
     repeat_words JSONB DEFAULT '[]',
+    completed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(user_id, level_id)
 );
@@ -561,6 +563,19 @@ SELECT * FROM (VALUES
     ('Test Ustası', '50 test tamamladın', '🎓', 'tests_completed', 50)
 ) AS v(name, description, icon, condition_type, condition_value)
 WHERE NOT EXISTS (SELECT 1 FROM badges LIMIT 1);
+
+-- ============================================
+-- MIGRATION: Add learned_words and completed_at columns
+-- ============================================
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_level_progress' AND column_name='learned_words') THEN
+        ALTER TABLE user_level_progress ADD COLUMN learned_words JSONB DEFAULT '[]';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_level_progress' AND column_name='completed_at') THEN
+        ALTER TABLE user_level_progress ADD COLUMN completed_at TIMESTAMPTZ;
+    END IF;
+END $$;
 
 -- ============================================
 -- NOTE: Admin User Creation

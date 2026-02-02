@@ -3,12 +3,15 @@
 const FlashcardsPage = {
     levels: [],
     currentLevel: null,
-    words: [],
+    allLevelWords: [],   // all words in the level (never mutated)
+    words: [],           // current round's words to show
     currentWordIndex: 0,
-    learnedWords: [],
-    repeatWords: [],
-    mode: 'learn', // 'learn' or 'review'
+    learnedWordIds: [],  // ids of words marked "learned" (persists across rounds)
+    repeatWordIds: [],   // ids of words marked "repeat" in current round
+    firstTimeLearnedCount: 0, // words learned on the very first pass
+    mode: 'learn',
     studyStartTime: null,
+    isFirstPass: true,
 
     async render(params = {}) {
         const container = document.createElement('div');
@@ -25,14 +28,30 @@ const FlashcardsPage = {
             this.levels = await DB.levels.getAll();
             const levelProgress = await DB.progress.getLevelProgress(Auth.user.id);
 
+            // Load word counts per level
+            const levelWordCounts = {};
+            for (const level of this.levels) {
+                try {
+                    const words = await DB.levels.getWords(level.id);
+                    levelWordCounts[level.id] = words.length;
+                } catch (e) {
+                    levelWordCounts[level.id] = 0;
+                }
+            }
+
             // Merge progress with levels
-            this.levels = this.levels.map(level => {
+            this.levels = this.levels.map((level, idx) => {
                 const progress = levelProgress.find(p => p.level_id === level.id);
+                const wordCount = levelWordCounts[level.id] || 0;
+                // First level is always unlocked; others need previous completed or explicit unlock
+                const isFirstLevel = level.order_index === 1 || idx === 0;
                 return {
                     ...level,
-                    isUnlocked: progress?.is_unlocked || level.order_index === 1,
+                    wordCount,
+                    isUnlocked: progress?.is_unlocked || isFirstLevel,
                     isCompleted: progress?.is_completed || false,
                     currentWordIndex: progress?.current_word_index || 0,
+                    learnedWords: progress?.learned_words || [],
                     repeatWords: progress?.repeat_words || []
                 };
             });
@@ -78,7 +97,7 @@ const FlashcardsPage = {
 
     renderLevelCard(level) {
         const statusClass = level.isCompleted ? 'completed' :
-            (level.isUnlocked && level.currentWordIndex > 0) ? 'current' :
+            (level.isUnlocked && (level.currentWordIndex > 0 || level.learnedWords.length > 0)) ? 'current' :
                 !level.isUnlocked ? 'locked' : '';
 
         const statusIcon = level.isCompleted ?
@@ -96,8 +115,9 @@ const FlashcardsPage = {
                 <polyline points="12 6 12 12 16 14"/>
             </svg>`;
 
-        const progress = level.isCompleted ? 100 :
-            Math.round((level.currentWordIndex / CONFIG.WORDS_PER_LEVEL) * 100);
+        const wordCount = level.wordCount || 0;
+        const learnedCount = level.isCompleted ? wordCount : (level.learnedWords?.length || 0);
+        const progress = wordCount > 0 ? Math.round((learnedCount / wordCount) * 100) : 0;
 
         return `
             <div class="level-card ${statusClass}" data-level-id="${level.id}" ${!level.isUnlocked ? 'disabled' : ''}>
@@ -111,7 +131,7 @@ const FlashcardsPage = {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <rect x="2" y="4" width="20" height="16" rx="2"/>
                         </svg>
-                        ${CONFIG.WORDS_PER_LEVEL} kelime
+                        ${wordCount} kelime
                     </span>
                 </div>
                 ${level.isUnlocked ? `
@@ -119,7 +139,7 @@ const FlashcardsPage = {
                         <div class="progress">
                             <div class="progress-bar" style="width: ${progress}%"></div>
                         </div>
-                        <span class="level-progress-text">${progress}%</span>
+                        <span class="level-progress-text">${learnedCount}/${wordCount} - ${progress}%</span>
                     </div>
                 ` : ''}
             </div>
@@ -127,11 +147,12 @@ const FlashcardsPage = {
     },
 
     async renderReviewMode(container) {
-        // Get words for review
         try {
             const reviewData = await DB.progress.getWordsForReview(Auth.user.id);
-            this.words = reviewData.map(r => r.words);
+            this.allLevelWords = reviewData.map(r => r.words);
+            this.words = [...this.allLevelWords];
         } catch (error) {
+            this.allLevelWords = [];
             this.words = [];
         }
 
@@ -144,7 +165,7 @@ const FlashcardsPage = {
                     </svg>
                     <h3 class="empty-state-title">Harika!</h3>
                     <p class="empty-state-text">Bugun tekrar edilecek kelime yok</p>
-                    <button class="btn btn-primary" id="back-to-levels">Seviyeler'e Don</button>
+                    <button class="btn btn-primary" id="back-to-levels">Seviyelere Don</button>
                 </div>
             `;
 
@@ -156,8 +177,10 @@ const FlashcardsPage = {
         }
 
         this.currentWordIndex = 0;
-        this.learnedWords = [];
-        this.repeatWords = [];
+        this.learnedWordIds = [];
+        this.repeatWordIds = [];
+        this.firstTimeLearnedCount = 0;
+        this.isFirstPass = true;
         this.studyStartTime = Date.now();
 
         return this.renderStudyView(container, true);
@@ -168,15 +191,22 @@ const FlashcardsPage = {
         container.className = 'flashcard-study page-enter';
 
         const word = this.words[this.currentWordIndex];
-        const totalWords = isReview ? this.words.length : CONFIG.WORDS_PER_LEVEL;
-        const progress = ((this.learnedWords.length) / totalWords) * 100;
+        if (!word) {
+            // Safety: shouldn't happen but handle gracefully
+            Router.navigate('flashcards');
+            return container;
+        }
+
+        const totalWords = this.allLevelWords.length;
+        const progress = totalWords > 0 ? ((this.learnedWordIds.length) / totalWords) * 100 : 0;
+        const remainingInRound = this.words.length - this.currentWordIndex;
 
         const header = document.createElement('div');
         header.className = 'flashcard-progress';
         header.innerHTML = `
             <div class="flashcard-progress-info">
                 <span>${isReview ? 'Tekrar' : this.currentLevel?.name || 'Seviye'}</span>
-                <span>${this.learnedWords.length}/${totalWords} ogrenildi</span>
+                <span>${this.learnedWordIds.length}/${totalWords} ogrenildi${this.repeatWordIds.length > 0 || (!this.isFirstPass) ? ' | Bu turda: ' + remainingInRound + ' kaldi' : ''}</span>
             </div>
             <div class="progress">
                 <div class="progress-bar" style="width: ${progress}%"></div>
@@ -254,7 +284,6 @@ const FlashcardsPage = {
                 </div>
             `).join('');
 
-            // Click to show word detail
             container.querySelectorAll('.search-result-item').forEach(item => {
                 item.addEventListener('click', () => {
                     const word = words.find(w => w.id === parseInt(item.dataset.wordId));
@@ -310,11 +339,16 @@ const FlashcardsPage = {
         this.currentLevel = this.levels.find(l => l.id === levelId);
         if (!this.currentLevel) return;
 
-        // Load words
+        // Load words for this level
         try {
-            this.words = await DB.levels.getWords(levelId);
+            this.allLevelWords = await DB.levels.getWords(levelId);
         } catch (error) {
             Toast.error('Kelimeler yuklenemedi');
+            return;
+        }
+
+        if (this.allLevelWords.length === 0) {
+            Toast.warning('Bu seviyede kelime yok');
             return;
         }
 
@@ -323,10 +357,32 @@ const FlashcardsPage = {
             await DB.progress.initializeLevelProgress(Auth.user.id, levelId);
         }
 
-        // Set state
-        this.currentWordIndex = this.currentLevel.currentWordIndex || 0;
-        this.learnedWords = [];
-        this.repeatWords = this.currentLevel.repeatWords || [];
+        // Restore saved progress
+        const savedLearned = this.currentLevel.learnedWords || [];
+        const savedRepeat = this.currentLevel.repeatWords || [];
+
+        this.learnedWordIds = [...savedLearned];
+        this.firstTimeLearnedCount = savedLearned.length;
+
+        // Determine which words to show in this session
+        if (savedRepeat.length > 0) {
+            // There are words saved for repeat - show those
+            this.words = this.allLevelWords.filter(w => savedRepeat.includes(w.id));
+            this.isFirstPass = false;
+        } else {
+            // Filter out already learned words, show remaining
+            const unlearnedWords = this.allLevelWords.filter(w => !savedLearned.includes(w.id));
+            if (unlearnedWords.length === 0) {
+                // All words already learned - level complete
+                Toast.success('Bu seviyeyi zaten tamamladiniz!');
+                return;
+            }
+            this.words = unlearnedWords;
+            this.isFirstPass = savedLearned.length === 0;
+        }
+
+        this.currentWordIndex = 0;
+        this.repeatWordIds = [];
         this.studyStartTime = Date.now();
 
         // Start study timer
@@ -335,21 +391,33 @@ const FlashcardsPage = {
         // Render study view
         const mainContent = document.getElementById('main-content');
         mainContent.innerHTML = '';
-        const studyView = await this.renderStudyView(mainContent);
+        await this.renderStudyView(mainContent);
     },
 
     async handleLearn(word, isReview = false) {
-        this.learnedWords.push(word.id);
+        // Add to learned if not already there
+        if (!this.learnedWordIds.includes(word.id)) {
+            this.learnedWordIds.push(word.id);
+            if (this.isFirstPass) {
+                this.firstTimeLearnedCount++;
+            }
+        }
 
         // Award points
-        await Auth.addPoints(CONFIG.POINTS.WORD_LEARNED);
+        try {
+            await Auth.addPoints(CONFIG.POINTS.WORD_LEARNED);
+        } catch (e) { console.warn('Points error:', e); }
 
         // Update word progress
         if (!isReview) {
-            await DB.progress.markWordLearned(Auth.user.id, word.id);
-            await DB.stats.update(Auth.user.id, { words: 1 });
+            try {
+                await DB.progress.markWordLearned(Auth.user.id, word.id);
+                await DB.stats.update(Auth.user.id, { words: 1 });
+            } catch (e) { console.warn('Progress update error:', e); }
         } else {
-            await DB.progress.updateReview(Auth.user.id, word.id, true);
+            try {
+                await DB.progress.updateReview(Auth.user.id, word.id, true);
+            } catch (e) { console.warn('Review update error:', e); }
         }
 
         // Show points animation
@@ -360,10 +428,15 @@ const FlashcardsPage = {
     },
 
     async handleRepeat(word, isReview = false) {
-        this.repeatWords.push(word.id);
+        // Add to repeat list for this round
+        if (!this.repeatWordIds.includes(word.id)) {
+            this.repeatWordIds.push(word.id);
+        }
 
         if (isReview) {
-            await DB.progress.updateReview(Auth.user.id, word.id, false);
+            try {
+                await DB.progress.updateReview(Auth.user.id, word.id, false);
+            } catch (e) { console.warn('Review update error:', e); }
         }
 
         // Next word
@@ -373,27 +446,30 @@ const FlashcardsPage = {
     async nextWord(isReview = false) {
         this.currentWordIndex++;
 
-        // Check if we've gone through all words
+        // Check if we've gone through all words in this round
         if (this.currentWordIndex >= this.words.length) {
-            // If there are words to repeat, cycle through them
-            if (this.repeatWords.length > 0 && !isReview) {
-                // Filter words to repeat only
-                this.words = this.words.filter(w => this.repeatWords.includes(w.id));
-                this.repeatWords = [];
+            if (this.repeatWordIds.length > 0) {
+                // Still have words to repeat - start new round with only repeat words
+                this.words = this.allLevelWords.filter(w => this.repeatWordIds.includes(w.id));
+                this.repeatWordIds = [];
                 this.currentWordIndex = 0;
+                this.isFirstPass = false;
             } else {
-                // Level/review complete
+                // All words learned - level/review complete!
                 await this.completeLevel(isReview);
                 return;
             }
         }
 
-        // Save progress
-        if (!isReview) {
-            await DB.progress.updateLevelProgress(Auth.user.id, this.currentLevel.id, {
-                current_word_index: this.currentWordIndex,
-                repeat_words: this.repeatWords
-            });
+        // Save progress periodically (not on review mode)
+        if (!isReview && this.currentLevel) {
+            try {
+                await DB.progress.updateLevelProgress(Auth.user.id, this.currentLevel.id, {
+                    current_word_index: this.currentWordIndex,
+                    learned_words: this.learnedWordIds,
+                    repeat_words: this.repeatWordIds
+                });
+            } catch (e) { console.warn('Progress save error:', e); }
         }
 
         // Render next card
@@ -403,29 +479,36 @@ const FlashcardsPage = {
 
     async completeLevel(isReview = false) {
         const studyTime = Math.floor((Date.now() - this.studyStartTime) / 60000);
-        await Auth.updateStudyTime(studyTime);
+        try { await Auth.updateStudyTime(studyTime); } catch (e) {}
         Storage.endStudySession();
 
         // Check and update streak
-        await Auth.checkAndUpdateStreak();
+        try { await Auth.checkAndUpdateStreak(); } catch (e) {}
 
         // Check for badges
-        const totalLearned = await DB.progress.getTotalLearnedWords(Auth.user.id);
-        await DB.badges.checkAndAward(Auth.user.id, 'words', totalLearned);
+        try {
+            const totalLearned = await DB.progress.getTotalLearnedWords(Auth.user.id);
+            await DB.badges.checkAndAward(Auth.user.id, 'words', totalLearned);
+        } catch (e) {}
 
-        if (!isReview) {
+        if (!isReview && this.currentLevel) {
             // Mark level complete
-            await DB.progress.updateLevelProgress(Auth.user.id, this.currentLevel.id, {
-                is_completed: true,
-                completed_at: new Date().toISOString(),
-                current_word_index: CONFIG.WORDS_PER_LEVEL,
-                repeat_words: []
-            });
+            try {
+                await DB.progress.updateLevelProgress(Auth.user.id, this.currentLevel.id, {
+                    is_completed: true,
+                    completed_at: new Date().toISOString(),
+                    current_word_index: this.allLevelWords.length,
+                    learned_words: this.learnedWordIds,
+                    repeat_words: []
+                });
+            } catch (e) { console.warn('Level complete save error:', e); }
 
             // Unlock next level
             const nextLevel = this.levels.find(l => l.order_index === this.currentLevel.order_index + 1);
             if (nextLevel) {
-                await DB.progress.initializeLevelProgress(Auth.user.id, nextLevel.id);
+                try {
+                    await DB.progress.initializeLevelProgress(Auth.user.id, nextLevel.id);
+                } catch (e) {}
             }
         }
 
@@ -437,15 +520,16 @@ const FlashcardsPage = {
         Flashcard.celebrate();
 
         const mainContent = document.getElementById('main-content');
-        const totalWords = isReview ? this.words.length : CONFIG.WORDS_PER_LEVEL;
-        const points = this.learnedWords.length * CONFIG.POINTS.WORD_LEARNED;
+        const totalWords = this.allLevelWords.length;
+        const points = this.learnedWordIds.length * CONFIG.POINTS.WORD_LEARNED;
+        const repeatNeeded = totalWords - this.firstTimeLearnedCount;
 
         mainContent.innerHTML = `
             <div class="level-complete animate-bounce-in">
                 <div class="level-complete-icon">🎉</div>
                 <h2>${isReview ? 'Tekrar Tamamlandi!' : 'Seviye Tamamlandi!'}</h2>
                 <p style="color: var(--text-secondary); margin-bottom: var(--spacing-xl);">
-                    ${isReview ? 'Tum kelimeleri tekrar ettiniz' : this.currentLevel.name + ' seviyesini tamamladiniz'}
+                    ${isReview ? 'Tum kelimeleri tekrar ettiniz' : (this.currentLevel?.name || 'Seviye') + ' seviyesini tamamladiniz'}
                 </p>
                 <div class="level-complete-stats">
                     <div class="level-complete-stat">
@@ -453,8 +537,12 @@ const FlashcardsPage = {
                         <div class="level-complete-stat-label">Toplam Kelime</div>
                     </div>
                     <div class="level-complete-stat">
-                        <div class="level-complete-stat-value">${this.learnedWords.length}</div>
-                        <div class="level-complete-stat-label">Ilk Seferde</div>
+                        <div class="level-complete-stat-value">${this.firstTimeLearnedCount}</div>
+                        <div class="level-complete-stat-label">Ilk Seferde Ogrenilenler</div>
+                    </div>
+                    <div class="level-complete-stat">
+                        <div class="level-complete-stat-value">${repeatNeeded}</div>
+                        <div class="level-complete-stat-label">Tekrar Gerektiren</div>
                     </div>
                     <div class="level-complete-stat">
                         <div class="level-complete-stat-value">+${points}</div>
@@ -502,15 +590,27 @@ const FlashcardsPage = {
 
         if (confirmed) {
             const studyTime = Math.floor((Date.now() - this.studyStartTime) / 60000);
-            await Auth.updateStudyTime(studyTime);
+            try { await Auth.updateStudyTime(studyTime); } catch (e) {}
             Storage.endStudySession();
 
-            if (!isReview) {
-                // Save current progress
-                await DB.progress.updateLevelProgress(Auth.user.id, this.currentLevel.id, {
-                    current_word_index: this.currentWordIndex,
-                    repeat_words: this.repeatWords
-                });
+            if (!isReview && this.currentLevel) {
+                // Save current progress including learned words and remaining repeat words
+                const currentRepeatIds = [...this.repeatWordIds];
+                // Also add remaining unprocessed words in current round as repeat
+                for (let i = this.currentWordIndex; i < this.words.length; i++) {
+                    const wid = this.words[i].id;
+                    if (!this.learnedWordIds.includes(wid) && !currentRepeatIds.includes(wid)) {
+                        currentRepeatIds.push(wid);
+                    }
+                }
+
+                try {
+                    await DB.progress.updateLevelProgress(Auth.user.id, this.currentLevel.id, {
+                        current_word_index: this.currentWordIndex,
+                        learned_words: this.learnedWordIds,
+                        repeat_words: currentRepeatIds
+                    });
+                } catch (e) { console.warn('Exit save error:', e); }
             }
 
             Router.navigate('flashcards');
@@ -520,10 +620,13 @@ const FlashcardsPage = {
     cleanup() {
         Flashcard.reset();
         this.currentLevel = null;
+        this.allLevelWords = [];
         this.words = [];
         this.currentWordIndex = 0;
-        this.learnedWords = [];
-        this.repeatWords = [];
+        this.learnedWordIds = [];
+        this.repeatWordIds = [];
+        this.firstTimeLearnedCount = 0;
+        this.isFirstPass = true;
     }
 };
 

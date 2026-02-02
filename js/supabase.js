@@ -373,6 +373,7 @@ const DB = {
                     level_id: levelId,
                     is_unlocked: true,
                     current_word_index: 0,
+                    learned_words: [],
                     repeat_words: []
                 }, { onConflict: 'user_id,level_id' })
                 .select()

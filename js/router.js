@@ -90,7 +90,7 @@ const Router = {
                     pageElement = await AdminPage.render();
                     break;
                 default:
-                    pageElement = await HomePage.render();
+                    pageElement = await FlashcardsPage.render();
                     break;
             }
         } catch (error) {
@@ -101,7 +101,7 @@ const Router = {
             pageElement.innerHTML = `
                 <h3 class="empty-state-title">Bir hata olustu</h3>
                 <p class="empty-state-text">${Helpers.escapeHtml(error.message || 'Sayfa yuklenemedi')}</p>
-                <button class="btn btn-primary" onclick="Router.navigate('home')">Ana Sayfaya Don</button>
+                <button class="btn btn-primary" onclick="Router.navigate('flashcards')">Ana Sayfaya Don</button>
             `;
         }
 

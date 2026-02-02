@@ -15,6 +15,12 @@ const Flashcard = {
 
         const card = document.createElement('div');
         card.className = 'flashcard-container';
+
+        // Apply card size preference
+        const cardSize = localStorage.getItem(CONFIG.STORAGE_KEYS.CARD_SIZE);
+        if (cardSize && cardSize !== 'normal') {
+            card.setAttribute('data-card-size', cardSize);
+        }
         card.innerHTML = `
             <div class="flashcard" data-word-id="${word.id}">
                 <div class="flashcard-face flashcard-front">

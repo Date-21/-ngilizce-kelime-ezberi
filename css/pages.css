@@ -616,6 +616,8 @@
     text-align: center;
     padding: var(--spacing-lg);
     gap: var(--spacing-md);
+    overflow-y: auto;
+    min-height: 0;
 }
 
 .flashcard-word {
@@ -623,18 +625,25 @@
     font-weight: var(--font-weight-bold);
     color: var(--text-primary);
     line-height: var(--line-height-tight);
+    word-break: break-word;
+    max-width: 100%;
+    flex-shrink: 0;
 }
 
 .flashcard-pronunciation {
     font-size: var(--card-pronunciation-size, 0.875rem);
     color: var(--text-tertiary);
     font-style: italic;
+    flex-shrink: 0;
 }
 
 .flashcard-meaning {
     font-size: var(--card-meaning-size, 1rem);
     font-weight: var(--font-weight-semibold);
     color: var(--accent-primary);
+    word-break: break-word;
+    max-width: 100%;
+    flex-shrink: 0;
 }
 
 .flashcard-sentence {
@@ -645,7 +654,23 @@
     background: var(--bg-secondary);
     border-radius: var(--radius-lg);
     margin-top: auto;
+    word-break: break-word;
+    max-width: 100%;
+    overflow-y: auto;
+    max-height: 35%;
+    flex-shrink: 1;
 }
+
+/* Card text size variants */
+[data-card-size="small"] .flashcard-word { font-size: 1.125rem; }
+[data-card-size="small"] .flashcard-pronunciation { font-size: 0.75rem; }
+[data-card-size="small"] .flashcard-meaning { font-size: 0.875rem; }
+[data-card-size="small"] .flashcard-sentence { font-size: 0.8125rem; }
+
+[data-card-size="large"] .flashcard-word { font-size: 2rem; }
+[data-card-size="large"] .flashcard-pronunciation { font-size: 1rem; }
+[data-card-size="large"] .flashcard-meaning { font-size: 1.25rem; }
+[data-card-size="large"] .flashcard-sentence { font-size: 1.0625rem; }
 
 .flashcard-image {
     width: 100%;
