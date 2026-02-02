@@ -461,11 +461,16 @@ const AdminPage = {
             if (selectedLevelId === 'new') {
                 // Create new level
                 const newLevelName = document.querySelector('#new-level-name')?.value?.trim();
-                const { data: existingLevels } = await supabaseClient
+                const { data: existingLevels, error: levelsErr } = await supabaseClient
                     .from('levels')
                     .select('order_index')
                     .order('order_index', { ascending: false })
                     .limit(1);
+
+                if (levelsErr) {
+                    console.error('Levels query error:', levelsErr);
+                    throw new Error('Seviye listesi alinamadi: ' + (levelsErr.message || levelsErr.details || JSON.stringify(levelsErr)));
+                }
 
                 const nextOrder = (existingLevels?.[0]?.order_index || 0) + 1;
                 const levelName = newLevelName || `Seviye ${nextOrder}`;
@@ -476,7 +481,13 @@ const AdminPage = {
                     .select()
                     .single();
 
-                if (levelError) throw levelError;
+                if (levelError) {
+                    console.error('Level insert error:', levelError);
+                    throw new Error('Seviye olusturulamadi: ' + (levelError.message || levelError.details || levelError.hint || JSON.stringify(levelError)));
+                }
+                if (!level) {
+                    throw new Error('Seviye olusturulamadi. RLS politikasi nedeniyle erisim reddedilmis olabilir. Kullanicinin admin yetkisi oldugundan emin olun.');
+                }
                 levelId = level.id;
             } else {
                 levelId = parseInt(selectedLevelId);
@@ -496,7 +507,10 @@ const AdminPage = {
                 }));
 
                 const { error: wordsError } = await supabaseClient.from('words').insert(batch);
-                if (wordsError) throw wordsError;
+                if (wordsError) {
+                    console.error('Words insert error:', wordsError);
+                    throw new Error('Kelime yukleme hatasi: ' + (wordsError.message || wordsError.details || wordsError.hint || JSON.stringify(wordsError)));
+                }
 
                 uploaded += batch.length;
                 btn.textContent = `Yukleniyor... (${uploaded}/${words.length})`;
@@ -508,9 +522,10 @@ const AdminPage = {
             this.uploadedData = null;
             this.loadWordList(content);
         } catch (error) {
-            Toast.error('Yukleme basarisiz: ' + error.message);
+            console.error('Upload failed:', error);
+            Toast.error(error.message || 'Yukleme basarisiz');
             btn.disabled = false;
-            btn.textContent = 'Tekrar Dene';
+            btn.innerHTML = 'Tekrar Dene';
         }
     },
 
